@@ -1,0 +1,7 @@
+*~
+.DS_Store
+.idea/
+Thumbs.db
+__MACOSX
+bin/
+node_modules/

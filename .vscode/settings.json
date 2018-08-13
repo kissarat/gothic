@@ -1,0 +1,34 @@
+{
+  "docker.attachShellCommand.linuxContainer": "/bin/bash",
+  "editor.fontSize": 13,
+  "editor.formatOnSave": true,
+  "editor.rulers": [
+    100
+  ],
+  "emmet.excludeLanguages": [
+    "markdown"
+  ],
+  "files.autoSave": "onFocusChange",
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.exclude": {
+    "**/.DS_Store": true,
+    "**/.git": true,
+    "__MACOSX": true
+  },
+  "files.insertFinalNewline": true,
+  "files.maxMemoryForLargeFilesMB": 4,
+  "files.trimFinalNewlines": true,
+  "files.trimTrailingWhitespace": true,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true
+  },
+  "html.suggest.ionic": false,
+  "telemetry.enableCrashReporter": false,
+  "telemetry.enableTelemetry": false,
+  "window.title": "${dirty}${activeEditorShort}${separator}${rootName}${separator}",
+  "workbench.colorTheme": "Darcula Theme from IntelliJ",
+  "workbench.iconTheme": "material-icon-theme"
+}
