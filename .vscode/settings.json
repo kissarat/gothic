@@ -2,12 +2,8 @@
   "docker.attachShellCommand.linuxContainer": "/bin/bash",
   "editor.fontSize": 13,
   "editor.formatOnSave": true,
-  "editor.rulers": [
-    100
-  ],
-  "emmet.excludeLanguages": [
-    "markdown"
-  ],
+  "editor.rulers": [100],
+  "emmet.excludeLanguages": ["markdown"],
   "files.autoSave": "onFocusChange",
   "files.encoding": "utf8",
   "files.eol": "\n",
@@ -25,6 +21,7 @@
     "**/.git/subtree-cache/**": true,
     "**/node_modules/**": true
   },
+  "go.autocompleteUnimportedPackages": true,
   "html.suggest.ionic": false,
   "telemetry.enableCrashReporter": false,
   "telemetry.enableTelemetry": false,
