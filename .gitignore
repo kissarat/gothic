@@ -6,3 +6,5 @@ __MACOSX
 bin/
 node_modules/
 main
+*.txt
+src/gothic/debug
