@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -19,9 +20,26 @@ import (
 
 var RegExpHTTPURL, err1 = regexp.Compile("^https?://")
 var RegExpMailto, err2 = regexp.Compile("^[a-z]+:[^/]")
+
+var RegExpNotFile, err3 = regexp.Compile("^https?://[^/]+/[\\w_\\-/]+")
 var agents = []string{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36 OPR/55.0.2994.44", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.2 Safari/605.1.15"}
 
 type byLength []string
+
+func index(s string) int {
+	j := 0
+	for i := 0; i < len(s); i++ {
+		switch s[j] {
+		case '/':
+			j += 10
+		case '?':
+			j += 2
+		case '.':
+			j++
+		}
+	}
+	return j
+}
 
 func (s byLength) Len() int {
 	return len(s)
@@ -30,13 +48,22 @@ func (s byLength) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 func (s byLength) Less(i, j int) bool {
-	return len(s[i]) < len(s[j])
+	a := s[i]
+	b := s[j]
+	if RegExpNotFile.MatchString(b) && !RegExpNotFile.MatchString(a) {
+		return true
+	}
+	if index(a)-index(b) > 0 {
+		return true
+	}
+	return len(b)-len(a) > 0
 }
 
 type Spider struct {
 	origin *url.URL
 	links  []string
 	parsed []string
+	done   chan bool
 }
 
 func (spider Spider) Parse(url string, ch chan string) {
@@ -45,6 +72,10 @@ func (spider Spider) Parse(url string, ch chan string) {
 	c.OnHTML("a[href]", func(e *colly.HTMLElement) {
 		link := strings.Split(e.Attr("href"), "#")[0]
 		if len(strings.Trim(link, " ")) > 0 {
+			last := len(link) - 1
+			if '/' == link[last] || '?' == link[last] {
+				link = link[:last]
+			}
 			if RegExpHTTPURL.MatchString(link) {
 				if 0 == strings.Index(link, origin) {
 					ch <- link
@@ -92,8 +123,8 @@ one:
 				fmt.Println(err)
 			}
 			if len(spider.links) > 0 {
-				// if 0 == len(spider.parsed)%10 {
-				// 	spider.Save()
+				// if 0 == len(spider.parsed)%64 {
+				// spider.Save()
 				// }
 				sort.Sort(byLength(spider.links))
 				next := spider.links[0]
@@ -104,6 +135,7 @@ one:
 			break
 		}
 	}
+	spider.done <- true
 }
 
 func (spider Spider) Run() {
@@ -130,6 +162,7 @@ func (spider Spider) Load() {
 	if nil == err2 {
 		spider.parsed = strings.Split(strings.Trim(string(parsed), " "), "\n")
 	}
+	// spider.done = make(chan bool, 1)
 }
 
 func (spider Spider) Save() error {
@@ -144,17 +177,25 @@ func (spider Spider) Save() error {
 	return nil
 }
 
+func (spider Spider) waitSignals() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT)
+	<-signals
+	spider.Save()
+	fmt.Println(strconv.Itoa(len(spider.links)))
+	spider.done <- true
+}
+
 func main() {
 	rand.Seed(time.Now().Unix())
 	origin, err0 := url.Parse(os.Args[1])
 	if nil != err0 {
 		panic(err0)
 	}
-
 	s := Spider{origin: origin}
-	signals := make(chan os.Signal, 1)
+	s.Load()
 	go s.Run()
-	signal.Notify(signals, syscall.SIGINT)
-	<-signals
-	s.Save()
+	go s.waitSignals()
+	<-s.done
+	os.Exit(0)
 }
