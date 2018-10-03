@@ -1,10 +1,10 @@
 *~
 .DS_Store
 .idea/
-Thumbs.db
 __MACOSX
 bin/
 node_modules/
 main
 *.txt
 src/gothic/debug
+*.db

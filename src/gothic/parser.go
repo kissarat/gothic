@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -21,87 +22,87 @@ CREATE TABLE link (
 var RegexHref = regexp.MustCompile("href=\"([^\"]+)\"")
 
 type Spider struct {
-	db *sql.DB
+	db     *sql.DB
+	client http.Client
 }
 
-func (spider Spider) fetch(url string) {
-	r, err2 := http.Get(url)
-	if nil != err2 {
-		fmt.Println(err2)
-		return
+func (spider Spider) Init() error {
+	var count int
+	spider.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'link'`, &count)
+	if 0 == count {
+		spider.db.Exec(schema)
 	}
-	data, err3 := ioutil.ReadAll(r.Body)
-	if nil != err3 {
-		fmt.Println(err3)
-		return
+	spider.client = http.Client{Timeout: time.Duration(15 * time.Second)}
+	return nil
+}
+
+func (spider Spider) Fetch(url string) error {
+	r, err1 := spider.client.Get(url)
+	if nil != err1 {
+		return err1
+	}
+	data, err2 := ioutil.ReadAll(r.Body)
+	if nil != err2 {
+		return err2
 	}
 	for _, m := range RegexHref.FindAllStringSubmatch(string(data), -1) {
-		// var count int
-		// row := spider.db.QueryRow("SELECT count(*) FROM link WHERE id in $1", m[1])
-		// row.Scan(&count)
-		// if 0 == count {
 		s := m[1]
-		if strings.HasPrefix(s, "http://rada.te.ua") {
+		if strings.HasPrefix(s, "https://te.20minut.ua") {
 			spider.db.Exec("INSERT INTO link (id) VALUES ($1)", s)
-		}
-		// }
-	}
-}
-
-func (spider Spider) archive(ch chan string) {
-	for {
-		url, more := <-ch
-		if more {
-			// time.Sleep(100 * time.Millisecond)
-			spider.fetch(url)
-			r, err := http.Get("http://web.archive.org/save/" + url)
-			if nil != err {
-				fmt.Println(err)
+		} else if len(s) > 0 && '/' == s[0] {
+			if len(s) > 1 && '/' == s[1] {
+				continue
 			}
-			spider.db.Exec("UPDATE link SET archived = current_timestamp WHERE id = $1", url)
-			fmt.Println(r.StatusCode, url)
-			spider.load(ch)
-		} else {
-			break
+			s = "https://te.20minut.ua" + s
+			// fmt.Println("ABC", s)
+			spider.db.Exec("INSERT INTO link (id) VALUES ($1)", s)
+			// if nil != err3 {
+			// return err3
+			// }
 		}
+	}
+	return nil
+}
+
+func (spider Spider) Archive(url string) {
+	spider.Fetch(url)
+	r, err := spider.client.Get("http://web.archive.org/save/" + url)
+	spider.db.Exec("UPDATE link SET archived = current_timestamp WHERE id = $1", url)
+	if nil == err {
+		fmt.Println(r.StatusCode, url)
+	} else {
+		fmt.Println("ARCHIVE ERROR: "+url, err)
+		time.Sleep(8 * time.Second)
 	}
 }
 
-func (spider Spider) load(ch chan string) {
-	rows, err2 := spider.db.Query("SELECT id FROM link WHERE archived IS NULL ORDER BY created")
-	if nil != err2 {
-		panic(err2)
-	}
-	// for i := 0; i < 10; i++ {
-	go spider.archive(ch)
-	// }
+func (spider Spider) Load() {
 	for {
-		if rows.Next() {
-			var s string
-			rows.Scan(&s)
-			ch <- s
-		} else {
-			// close(ch)
-			fmt.Println("Channel closed")
-			break
+		row := spider.db.QueryRow("SELECT id FROM link WHERE archived IS NULL LIMIT 1")
+		var url string
+		err := row.Scan(&url)
+		if nil == err {
+			spider.Archive(url)
+		} else if sql.ErrNoRows == err {
+			fmt.Errorf("No rows\n")
+			return
 		}
 	}
 }
 
 func main() {
-	db, err1 := sql.Open("sqlite3", "parser.db")
-	if nil != err1 {
-		panic(err1)
+	db, err := sql.Open("sqlite3", "parser.db")
+	if nil != err {
+		panic(err)
 	}
-	defer db.Close()
-	var count int
-	db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'link'`, &count)
-	if 0 == count {
-		db.Exec(schema)
-	}
-
 	spider := Spider{db: db}
-	spider.fetch("http://rada.te.ua/")
-	ch := make(chan string, 1)
-	spider.load(ch)
+	err = spider.Init()
+	if nil != err {
+		panic(err)
+	}
+	err = spider.Fetch("https://te.20minut.ua/")
+	if nil != err {
+		panic(err)
+	}
+	spider.Load()
 }
